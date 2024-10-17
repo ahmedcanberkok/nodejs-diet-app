@@ -3,8 +3,10 @@ const db = require('../../config/db-config');
 const ProfilesModel = {
   // Yeni profil oluşturma
   async createProfile(profileData) {
-    const [newProfile] = await db('profiles').insert(profileData).returning('*');
-    return newProfile;
+    const [newProfile] = await db('profiles')
+    .insert(profileData) // user_id'yi eklemiyoruz
+    .returning('*');
+  return newProfile;
   },
 
   // Profil güncelleme

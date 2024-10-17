@@ -16,21 +16,27 @@ const getById = (id) => {
   return db('users').where('id', id).first();
 };
 
-// Yeni kullanıcı oluşturur
+
 const create = async (user) => {
-  const [newUser] = await db('users').insert(user).returning(['id']);
-  return getById(newUser.id);
+  const [newUser] = await db('users')
+    .insert({
+      username: user.username,
+      email: user.email,
+      phone_no: user.phone_no,
+      password: user.password,
+      isverified: false, // Varsayılan olarak false
+      created_at: new Date(), // Oluşturulma zamanı
+      updated_at: new Date(), // Güncellenme zamanı
+    })
+    .returning(['id', 'username', 'email', 'phone_no', 'isverified', 'created_at', 'updated_at']); // Dönen alanlar
+  return newUser;
 };
 
 // Kullanıcının doğrulama durumunu günceller
 const updateVerificationStatus = (id, status) => {
-  return db('users').where({ id }).update({ isVerified: status }).returning('*');
+  return db('users').where({ id }).update({ isverified: status }).returning('*');
 };
 
-// Kullanıcı şifresini doğrular (bcrypt kullanarak)
-const validatePassword = async (enteredPassword, storedPasswordHash) => {
-  return bcrypt.compareSync(enteredPassword, storedPasswordHash);
-};
 
 module.exports = {
   getByEmail,
@@ -38,5 +44,5 @@ module.exports = {
   getById,
   create,
   updateVerificationStatus,
-  validatePassword, // Yeni eklenen şifre doğrulama fonksiyonu
+   // Yeni eklenen şifre doğrulama fonksiyonu
 };

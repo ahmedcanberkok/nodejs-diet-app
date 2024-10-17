@@ -7,7 +7,6 @@ const { PORT } = require('../config/config'); // Port bilgisi config'den geliyor
 // Route'lar (auth ve profile router'ları)
 const authRouter = require('./controllers/auth-router');
 const profileRouter = require('./controllers/profile-router');
-
 // Express instance oluşturma
 const app = express();
 
@@ -25,6 +24,7 @@ app.get('/', (req, res) => {
 // Route'ları ekle
 app.use('/api/auth', authRouter); // Auth işlemleri için route
 app.use('/api/profile', profileRouter); // Profil işlemleri için route
+
 
 // Hata yakalama middleware'i
 app.use((err, req, res, next) => {

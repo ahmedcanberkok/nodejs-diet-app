@@ -1,42 +1,50 @@
 const express = require('express');
-const router = express.Router();
 const bcrypt = require('bcryptjs');
-const User = require('../models/users-model'); // Kullanıcı işlemleri için model
-const { generateVerificationToken } = require('../middlewares/auth-token-middleware'); // Doğrulama için token oluşturma
-const { restrictedForLogin } = require('../middlewares/auth-login-middleware'); // Giriş doğrulama middleware
-const { checkAuthentication } = require('../middlewares/auth-token-middleware') ; // 
-const UsersProfiles = require('../models/users-profiles-model'); // Kullanıcı-profil ilişkisi için model
-const { sendVerificationEmail } = require('../services/mailService'); // E-posta doğrulama için servis
+const router = express.Router();
+const UsersModel = require('../models/users-model');
+UsersProfilesModel = require('../models/users-profiles-model')
+const { restrictedForLogin, checkAuthentication } = require('../middlewares/auth-middleware');
+const { sendEmail } = require('../services/mailService'); // Mailjet servisini içe aktar
+const fs = require('fs');
+const path = require('path');
 
-// Kullanıcı kayıt endpoint'i
+
+// Kullanıcı kaydı (Register)
 router.post('/register', async (req, res, next) => {
   try {
-    const payload = req.body;
-    // Şifreyi bcrypt ile hash'liyoruz
-    payload.password = bcrypt.hashSync(payload.password, 10);
+    const { username, email, phone_no, password } = req.body;
 
-    // Yeni kullanıcı oluşturuluyor
-    const newUser = await User.create(payload);
+    // Şifreyi hash'le
+    const hashedPassword = bcrypt.hashSync(password, 12);
+
+    // Kullanıcıyı veritabanına ekle
+    const newUser = await UsersModel.create({
+      username,
+      email,
+      phone_no,
+      password: hashedPassword,
+    });
+
+    await UsersProfilesModel.createUserProfileRelation(newUser.id);
+
     if (newUser) {
-      // Kullanıcı-profil ilişkisini oluştur
-      await UsersProfiles.createUserProfileRelation(newUser.id);
+      const subject = 'Hoşgeldin!';
+      const textPart = `Hoşgeldin ${username}, DietAPP ailesine katıldığın için teşekkür ederiz!`;
 
-      // E-posta doğrulama token'ı oluştur
-      const verificationToken = generateVerificationToken(newUser);
+      // HTML şablonunu dosyadan oku
+      const htmlFilePath = path.join(__dirname, '..', 'views', 'welcome_email.html');
+      let htmlPart = fs.readFileSync(htmlFilePath, 'utf-8');
 
-      // Kullanıcıya profil oluşturma linkini içeren bir e-posta gönder
-      const verificationLink = `http://localhost:3000/profile/create?token=${verificationToken}`;
+      // Kullanıcı adı dinamik olarak şablona ekleniyor
+      htmlPart = htmlPart.replace('{{username}}', username);
 
-      const subject = 'Hesabınızı Doğrulayın ve Profilinizi Oluşturun';
-      const textPart = `Merhaba ${newUser.username}, profilinizi oluşturmak için şu bağlantıyı kullanın: ${verificationLink}`;
-      const htmlPart = `<h2>Merhaba ${newUser.username},</h2>
-        <p>Profilinizi oluşturmak için aşağıdaki linke tıklayın:</p>
-        <a href="${verificationLink}">${verificationLink}</a>`;
+      // E-posta gönderimini başlat
+      await sendEmail(newUser.email, subject, textPart, htmlPart);
 
-      // E-posta gönderiliyor
-      await sendVerificationEmail(newUser.email, newUser.username, subject, textPart, htmlPart);
-
-      res.status(201).json({ message: `Profil oluşturmak için e-posta adresinize gönderilen linki kullanın!` });
+      res.status(201).json({
+        message: `Kullanıcı başarıyla oluşturuldu: ${username} ve hoşgeldin e-postası gönderildi.`,
+        user: newUser,
+      });
     } else {
       next({ status: 400, message: 'Kullanıcı oluşturulamadı' });
     }
@@ -44,28 +52,12 @@ router.post('/register', async (req, res, next) => {
     next(error);
   }
 });
+// Kullanıcı girişi (Login)
+router.post('/login', restrictedForLogin);
 
-// Kullanıcı giriş endpoint'i (Login işlemi)
-router.post('/login', restrictedForLogin, async (req, res, next) => {
-  try {
-    // restrictedForLogin middleware'den token alınır
-    const token = req.token;
-
-    // Kullanıcıya başarılı giriş mesajı ve token gönderilir
-    res.status(200).json({ message: `Hoş geldiniz, ${req.body.username}`, token });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// JWT doğrulama gerektiren korumalı route
-router.get('/me', checkAuthentication, async (req, res, next) => {
-  try {
-    const user = await User.getById(req.decodeToken.id); // Kullanıcı ID ile bilgilerini alıyoruz
-    res.status(200).json(user); // Kullanıcı bilgilerini döndürüyoruz
-  } catch (error) {
-    next(error);
-  }
+// Token doğrulama
+router.get('/auth-check', checkAuthentication, (req, res) => {
+  res.status(200).json({ message: 'Kullanıcı doğrulandı', user: req.decodeToken });
 });
 
 module.exports = router;

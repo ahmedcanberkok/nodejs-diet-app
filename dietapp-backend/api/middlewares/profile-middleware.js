@@ -1,3 +1,4 @@
+//Profile-middleware
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../../config/config');
 const UsersProfilesModel = require('../models/users-profiles-model');
@@ -25,18 +26,27 @@ const validateUser = (req, res, next) => {
 const checkUserProfileExists = async (req, res, next) => {
   try {
     const user_id = req.decodeToken.id;
+    console.log('User ID from token:', user_id);
 
     const userProfileRelation = await UsersProfilesModel.getUserProfileRelation(user_id);
+    console.log('User Profile Relation:', userProfileRelation);
 
     if (userProfileRelation && userProfileRelation.profile_id) {
+
       const profile = await ProfilesModel.getProfileById(userProfileRelation.profile_id);
+      console.log('Profile from DB:', profile);
+
       if (profile) {
         req.profile = profile; 
-        return next();
-      }
-    }
+        console.log('Profile successfully found, proceeding to next middleware.');
 
-    return res.status(404).json({ message: "Bu kullanıcıya ait profil bulunamadı. Lütfen profil oluşturun." });
+        return next();
+      } else {
+        console.log('Profile found in relation but not in profiles table.');
+      }
+    } 
+
+    return res.status(404).json({ message: "Bu kullanıcıya ait profil bulunamadı. Lütfen profil oluşturun!" });
   } catch (err) {
     next(err);
   }
