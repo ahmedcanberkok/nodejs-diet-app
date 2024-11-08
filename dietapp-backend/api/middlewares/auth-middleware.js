@@ -19,34 +19,47 @@ const generateLoginToken = (user) => {
     id: user.id,
     username: user.username,
     profile_id: user.profile_id,
-    isVerified: user.isVerified, // Kullanıcının profil oluşturup oluşturmadığını kontrol ediyoruz
-  };
+    isVerified: user.isVerified === undefined ? false : user.isVerified,
+    };
   const options = {
     expiresIn: "3h",
   };
 
   return jwt.sign(payload, JWT_SECRET, options);
+
 };
 
-// Giriş kontrolü için middleware (Login doğrulama)
+ // Giriş kontrolü için middleware (Login doğrulama)
 const restrictedForLogin = async (req, res, next) => {
   try {
     const { username, password } = req.body;
 
     // Kullanıcının login bilgilerini kontrol et
     const user = await UsersModel.getByUsername(username);
-    if (!user || !verifyPassword(user.password, password)) { // Artık direkt verifyPassword kullanılıyor
+    if (!user || !verifyPassword(user.password, password)) {
       return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya şifre' });
     }
 
-    // Kullanıcının profilinin olup olmadığını kontrol et
-    const token = generateLoginToken({
+    // `isverified` alanını kontrol edin
+    let profileId = null;
+    if (user.isverified) {
+      // isverified true ise profile_id'yi çekin
+      const userProfileRelation = await UsersProfilesModel.getUserProfileRelation(user.id);
+      profileId = userProfileRelation ? userProfileRelation.profile_id : null;
+    }
+
+    // Token için kullanıcı nesnesini hazırlayın
+    const tokenPayload = {
       id: user.id,
       username: user.username,
-      profile_id: user.profile_id,
-      isverified: user.isverified,
-    });
+      profile_id: profileId, // Eğer isverified false ise null dönecek
+      isVerified: user.isverified, // Mevcut isverified değerini kullanıyoruz
+    };
+    
+    console.log("Token Payload:", tokenPayload);
 
+    // Token oluştur
+    const token = generateLoginToken(tokenPayload);
     res.status(200).json({ message: `Hoş geldiniz, ${username}`, token });
   } catch (error) {
     next(error);
